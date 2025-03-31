@@ -7,7 +7,7 @@
 
 #define MAX_ROLLS 1000
 #define FILE_NAME "dice_rolls.txt"
-#define MAX_FILE_SIZE 1024 * 1024  // Максимальний розмір файлу (1 МБ)
+#define MAX_FILE_SIZE 1024 * 1024  
 
 void handle_sigxfsz(int signum) {
     printf("File size limit reached. Stopping write operation.\n");
