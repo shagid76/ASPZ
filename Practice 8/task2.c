@@ -17,6 +17,6 @@ int main() {
     }
     printf("\n");
 
-    close(fd);
+    close(file);
     return 0;
 }
