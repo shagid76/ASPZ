@@ -1,72 +1,44 @@
-#define _XOPEN_SOURCE 700   
+#include <stdio.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <dirent.h>
+#include <sys/stat.h>
 #include <pwd.h>
 #include <grp.h>
 #include <time.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
 
-#define TIME_FMT "%b %e %H:%M"
-
-static void perms_to_string(mode_t mode, char out[11])
-{
-    const char *rwx = "rwx";
-    out[0] = S_ISDIR(mode)  ? 'd' :
-             S_ISLNK(mode)  ? 'l' :
-             S_ISCHR(mode)  ? 'c' :
-             S_ISBLK(mode)  ? 'b' :
-             S_ISSOCK(mode) ? 's' :
-             S_ISFIFO(mode) ? 'p' : '-';
-    for (int i = 0; i < 9; ++i)
-        out[i + 1] = (mode & (1 << (8 - i))) ? rwx[i % 3] : '-';
-    if (mode & S_ISUID) out[3] = (mode & S_IXUSR) ? 's' : 'S';
-    if (mode & S_ISGID) out[6] = (mode & S_IXGRP) ? 's' : 'S';
-    if (mode & S_ISVTX) out[9] = (mode & S_IXOTH) ? 't' : 'T';
-    out[10] = '\0';
+void print_permissions(mode_t mode) {
+    char perms[11] = "----------";
+    if (S_ISDIR(mode)) perms[0] = 'd';
+    if (mode & S_IRUSR) perms[1] = 'r';
+    if (mode & S_IWUSR) perms[2] = 'w';
+    if (mode & S_IXUSR) perms[3] = 'x';
+    if (mode & S_IRGRP) perms[4] = 'r';
+    if (mode & S_IWGRP) perms[5] = 'w';
+    if (mode & S_IXGRP) perms[6] = 'x';
+    if (mode & S_IROTH) perms[7] = 'r';
+    if (mode & S_IWOTH) perms[8] = 'w';
+    if (mode & S_IXOTH) perms[9] = 'x';
+    printf("%s ", perms);
 }
 
-int main(void)
-{
+int main() {
     DIR *dir = opendir(".");
-    if (!dir) {
-        perror("opendir");
-        return EXIT_FAILURE;
-    }
-    struct dirent *de;
-    char perm[11], timebuf[64], linktarget[PATH_MAX + 1];
-    while ((de = readdir(dir))) {
-        struct stat st;
-        if (lstat(de->d_name, &st) == -1) {
-            fprintf(stderr, "lstat(%s): %s\n", de->d_name, strerror(errno));
-            continue;
+    struct dirent *entry;
+    struct stat info;
+    char timebuf[80];
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (stat(entry->d_name, &info) == 0) {
+            print_permissions(info.st_mode);
+            printf("%ld ", info.st_nlink);
+            printf("%s ", getpwuid(info.st_uid)->pw_name);
+            printf("%s ", getgrgid(info.st_gid)->gr_name);
+            printf("%5ld ", info.st_size);
+            strftime(timebuf, sizeof(timebuf), "%b %d %H:%M", localtime(&info.st_mtime));
+            printf("%s ", timebuf);
+            printf("%s\n", entry->d_name);
         }
-        perms_to_string(st.st_mode, perm);
-        struct passwd *pw = getpwuid(st.st_uid);
-        struct group  *gr = getgrgid(st.st_gid);
-        struct tm *tm = localtime(&st.st_mtime);
-        strftime(timebuf, sizeof timebuf, TIME_FMT, tm);
-        printf("%s %2lu %-8s %-8s %8ld %s %s",
-               perm,
-               (unsigned long)st.st_nlink,
-               pw ? pw->pw_name : "-",
-               gr ? gr->gr_name : "-",
-               (long)st.st_size,
-               timebuf,
-               de->d_name);
-        if (S_ISLNK(st.st_mode)) {
-            ssize_t n = readlink(de->d_name, linktarget, sizeof linktarget - 1);
-            if (n != -1) {
-                linktarget[n] = '\0';
-                printf(" -> %s", linktarget);
-            }
-        }
-        putchar('\n');
     }
     closedir(dir);
-    return EXIT_SUCCESS;
+    return 0;
 }
